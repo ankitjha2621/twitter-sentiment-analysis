@@ -118,6 +118,15 @@ GitHub:
 https://github.com/ankitjha2621
 
 ---
+## Screenshots
+
+### Dashboard
+
+![Dashboard](<Screenshot 2026-06-08 093925.png>)
+
+### Prediction
+
+![Prediction](<Screenshot 2026-06-08 093907.png>)
 
 ## Future Improvements
 
