@@ -3,11 +3,12 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
-import pickle
 import re
-import os
 from datetime import datetime
+from pathlib import Path
 import time
+
+from csv_import import extract_posts
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  PAGE CONFIG
@@ -644,8 +645,9 @@ def _load_file(path: str):
 
 @st.cache_resource(show_spinner=False)
 def load_model():
-    model_path = os.path.join("models", "sentiment_model.pkl")
-    vec_path   = os.path.join("models", "tfidf_vectorizer.pkl")
+    model_directory = Path(__file__).resolve().parent.parent / "models"
+    model_path = model_directory / "sentiment_model.pkl"
+    vec_path = model_directory / "tfidf_vectorizer.pkl"
     try:
         model      = _load_file(model_path)
         vectorizer = _load_file(vec_path)
@@ -726,6 +728,37 @@ def predict_sentiment(text: str) -> dict:
         "positive": float(pos_p), "negative": float(neg_p), "neutral": float(neu_p),
         "cleaned": cleaned,
     }
+
+def read_uploaded_posts(uploaded_file) -> list[str]:
+    if uploaded_file is None:
+        return []
+
+    try:
+        df = pd.read_csv(uploaded_file)
+        return extract_posts(df)
+    except (
+        pd.errors.EmptyDataError,
+        pd.errors.ParserError,
+        UnicodeDecodeError,
+        ValueError,
+    ) as error:
+        st.error(str(error))
+        return []
+
+def record_result(text: str, result: dict) -> None:
+    st.session_state.total += 1
+    if result["label"] == "Positive":
+        st.session_state.pos_n += 1
+    elif result["label"] == "Negative":
+        st.session_state.neg_n += 1
+    else:
+        st.session_state.neu_n += 1
+    st.session_state.history.append({
+        **result,
+        "text": text[:90],
+        "time": datetime.now().strftime("%H:%M:%S"),
+    })
+    st.session_state.last_result = result
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  EXPLAINABLE AI  (TF-IDF keyword importance)
@@ -996,6 +1029,10 @@ with st.sidebar:
                               label_visibility="collapsed")
     conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.50, 0.05)
     max_features   = st.slider("Max TF-IDF Features", 1000, 20000, 5000, 1000)
+    uploaded_posts_file = st.file_uploader("Import Xquik or tweet CSV", type="csv")
+    imported_posts = read_uploaded_posts(uploaded_posts_file)
+    if imported_posts:
+        st.caption(f"{len(imported_posts)} imported posts ready for batch analysis.")
 
     st.markdown("<div class='sb-divider'></div>", unsafe_allow_html=True)
     st.markdown("<div class='sb-section'>Session Analytics</div>", unsafe_allow_html=True)
@@ -1156,6 +1193,19 @@ with col_left:
     </p>""", unsafe_allow_html=True)
 
     run_btn = st.button("▶  RUN SENTIMENT ANALYSIS", use_container_width=True)
+    batch_btn = st.button(
+        "ANALYSE IMPORTED CSV",
+        disabled=not imported_posts,
+        use_container_width=True,
+    )
+
+    if batch_btn:
+        if not model_loaded:
+            st.error("❌ Model files not found. Place model files in /models before batch analysis.")
+        else:
+            for post in imported_posts[:100]:
+                record_result(post, predict_sentiment(post))
+            st.success(f"Analysed {min(len(imported_posts), 100)} imported posts.")
 
     # ── Inference & Results ──────────────────────────────────────────────────
     if run_btn and tweet_input.strip():
@@ -1165,18 +1215,7 @@ with col_left:
             with st.spinner(""):
                 time.sleep(0.35)
                 result = predict_sentiment(tweet_input)
-
-            # Update state
-            st.session_state.total += 1
-            if result["label"] == "Positive":   st.session_state.pos_n += 1
-            elif result["label"] == "Negative": st.session_state.neg_n += 1
-            else:                               st.session_state.neu_n += 1
-            st.session_state.history.append({
-                **result,
-                "text": tweet_input[:90],
-                "time": datetime.now().strftime("%H:%M:%S"),
-            })
-            st.session_state.last_result = result
+            record_result(tweet_input, result)
 
     elif run_btn:
         st.warning("⚠ Enter some text before running analysis.")
