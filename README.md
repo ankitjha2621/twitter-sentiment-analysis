@@ -19,6 +19,15 @@ The project leverages TF-IDF Vectorization, Logistic Regression, Streamlit, and 
 * Sentiment Analytics Visualization
 * Prediction History Tracking
 * Business Insights Dashboard
+* Xquik CSV Batch Imports
+
+## Xquik CSV Imports
+
+Upload an Xquik CSV with its canonical `Tweet Text` column, or another export
+with a `text`, `tweet`, or `full_text` column, to analyze up to 100 posts in one
+run. Header matching is case-insensitive and accepts underscores or spaces.
+
+Xquik is an independent third-party service. Not affiliated with X Corp.
 
 ---
 
